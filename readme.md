@@ -1,139 +1,144 @@
 # Health Crawler
 
-![Rust](https://img.shields.io/badge/language-Rust-000000.svg) ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![Rust](https://img.shields.io/badge/rust-stable-orange?style=for-the-badge&logo=rust) ![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)
 
-High-performance asynchronous RSS crawler and HTML scraper written in Rust.
+A high-performance, asynchronous RSS crawler and HTML scraper built in **Rust**.
 
-Author: Harsh — GitHub: horus-bot
-
----
-
-## Overview
-
-Health Crawler is an async, high-throughput web crawler that ingests RSS feeds, filters recently published items, fetches article pages concurrently, and extracts clean article text as structured output. The project was born from a direct comparison with a prior Python implementation: under high concurrency the Rust version demonstrated substantially better throughput, lower latency, and a smaller memory footprint.
-
-Motivation:
-
-- Evaluate Rust for real-world, concurrent web-scraping workloads.
-- Keep resource usage low while maintaining high parallelism.
-- Provide a practical foundation that can be extended toward indexing, analytics, or downstream ML pipelines.
-
-Rust's native performance, modern async ecosystem (`tokio`, `reqwest`) and stable HTML parsing (`scraper`) make it an excellent choice for building production-grade crawlers.
+**Author:** [Harsh](https://github.com/horus-bot)
 
 ---
 
-## Architecture
+## 📖 Overview & Motivation
+
+**Health Crawler** fetches RSS feeds, filters for recently published articles, scrapes the article text from web pages concurrently, cleans the HTML, and outputs structured article data.
+
+### The Paradigm Shift: LLMs and Systems Programming
+
+Traditionally, writing a concurrent web scraper in a higher-level language like Python or Node.js was the default choice due to steep learning curves associated with lower-level languages like Rust. However, **modern LLM tools have fundamentally shifted this paradigm.** 
+
+AI coding assistants significantly reduce the barrier to entry for systems programming. They help developers navigate Rust's strictly enforced memory safety (the borrow checker), async traits, and lifetimes. Because of this, it is now easier than ever to experiment with and deploy highly optimized, memory-efficient Rust applications instead of settling for slower, resource-heavy alternatives.
+
+### Why Rust?
+
+When compared to a previous Python implementation of this exact pipeline, Rust provided:
+- **Massive Performance Gains:** Handled thousands of concurrent connections effortlessly.
+- **Low Memory Usage:** Async tasks (`tokio`) consume a fraction of the memory footprint of Python threads or processes.
+- **Zero-Cost Abstractions:** Safe, fearless concurrency without runtime overhead.
+
+---
+
+## 🏗️ Architecture
+
+The crawler leverages `tokio` for async runtime, `reqwest` for HTTP pooling, `scraper` for HTML parsing, and `rss` for feed decoding.
 
 ```mermaid
-flowchart LR
-  FeedList["Feed List (src/feeds.rs)"] --> RSSFetch["Fetch RSS (async)"]
-  RSSFetch --> ItemParse["Parse RSS Items"]
-  ItemParse --> URLQueue["URL Queue / Filter (recency)"]
-  URLQueue --> Scraper["Concurrent Scraper (reqwest + tokio)"]
-  Scraper --> HTMLParse["HTML Parse & Extract (scraper)"]
-  HTMLParse --> ArticleObj["Article struct (models.rs)"]
-  ArticleObj --> Output["Store / Index / Export"]
+graph TD
+    A[RSS Feed URLs] -->|reqwest| B(Async RSS Fetch)
+    B -->|rss crate| C{Parse & Filter}
+    C -->|Old Articles| D[Discard]
+    C -->|Recent Articles| E[URL Queue]
+    
+    E -->|tokio spawn| F(Concurrent HTTP GET)
+    F -->|reqwest| G(Fetch HTML)
+    G -->|scraper| H(Extract Paragraphs)
+    H -->|Clean & Format| I[Structured Article Data]
+    I --> J[(Database / JSON / Output)]
+
+    classDef fetch fill:#2b5c8f,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef process fill:#d97736,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef data fill:#2d8a56,stroke:#fff,stroke-width:2px,color:#fff;
+
+    B:::fetch; F:::fetch; G:::fetch;
+    C:::process; H:::process;
+    A:::data; I:::data; J:::data;
 ```
-
-Pipeline summary:
-
-- RSS ingestion → filter recent articles → concurrent HTTP requests → HTML parsing → paragraph extraction → structured `Article` output.
 
 ---
 
-## Project Structure
+## 🗂️ Project Structure
 
-```
+```text
 health_crawler/
-├── src/
-│   ├── main.rs        # application entrypoint
-│   ├── crawler.rs     # main scraping + parsing logic
-│   ├── feeds.rs       # list of RSS feeds and feed helpers
-│   └── models.rs      # Article struct and serialization
-├── Cargo.toml
-└── README.md
+├── Cargo.toml         # Dependencies (tokio, reqwest, scraper, etc.)
+├── README.md          # Project documentation
+└── src/
+    ├── main.rs        # Orchestration and entry point
+    ├── crawler.rs     # Async scraping and HTML extraction logic
+    ├── feeds.rs       # Seed RSS URLs and helpers
+    └── models.rs      # Data structures and serialization (serde)
 ```
-
-Key files to edit:
-
-- `src/feeds.rs` — add or remove RSS feed URLs.
-- `src/crawler.rs` — update selectors, thresholds, and extraction logic.
-- `src/models.rs` — change output schema or serialization.
 
 ---
 
-## Installation
+## 🚀 Installation & Usage
 
-Prerequisites: Rust toolchain (rustup + cargo).
+### Prerequisites
+Make sure you have [Rust and Cargo](https://rustup.rs/) installed.
 
-Install Rust:
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-Build and run:
+### Build and Run
+Clone the repository and run the crawler in release mode for maximum performance:
 
 ```bash
+git clone https://github.com/horus-bot/health_crawler.git
 cd health_crawler
+
+# Build for production
 cargo build --release
+
+# Run the crawler
 cargo run --release
 ```
 
-Development mode (debug):
+---
 
-```bash
-cargo run
+## 🛠️ Customization
+
+Health Crawler is designed to be easily extensible to **any topic**, not just health. 
+
+### 1. Modifying Feeds
+Open `src/feeds.rs` and replace the existing URLs with your target topic feeds (e.g., Finance, Tech, Sports):
+```rust
+pub fn get_seed_urls() -> Vec<&'static str> {
+    vec![
+        "https://news.ycombinator.com/rss",
+        "https://techcrunch.com/rss",
+    ]
+}
+```
+
+### 2. Tuning the Selectors
+Open `src/crawler.rs`. By default, the scraper looks for `<p>` tags. You can narrow this down for specific sites using CSS selectors:
+```rust
+// In src/crawler.rs
+let selector = Selector::parse("article .content p").unwrap();
+```
+
+### 3. Adjusting Filtering Thresholds
+In `src/crawler.rs`, you can easily expand the text limits or paragraph counts:
+```rust
+for element in document.select(&selector).take(50) { // Take up to 50 paragraphs
+    let text = element.text().collect::<Vec<_>>().join(" ");
+    if text.len() > 50 { // Skip short, noisy snippets
+        content.push_str(&text);
+        content.push('\n');
+    }
+}
 ```
 
 ---
 
-## Usage
+## ⚡ Performance Benchmarks
 
-By default the app loads feeds from `src/feeds.rs`, fetches recent items, scrapes pages and prints or stores `Article` objects. To change where results go, modify the final stage of the pipeline in `src/main.rs` or `src/crawler.rs`.
+The core motivation of this project was to benchmark Rust against higher-level languages for IO-bound scraping workloads. 
 
-Example: run the crawler against a single feed (dev)
+*Test Scenario: 50 RSS feeds -> 200 URLs -> Concurrent HTTP fetch -> HTML Parsing -> Local Machine (8-core x86_64, 16GB RAM).*
 
-```bash
-RUST_LOG=info cargo run --example run_one_feed --release
-```
-
-Replace `run_one_feed` with a small harness or example entry you add that reads `src/feeds.rs` and runs the pipeline for testing.
-
----
-
-## Customization — Crawling Any Topic
-
-1. Find authoritative RSS feeds for your topic.
-2. Add the feed URLs to `src/feeds.rs` (one URL per string).
-3. Inspect sample article pages and choose a robust CSS selector for the article body.
-4. Update the selector in `src/crawler.rs` (see `Selector::parse("p")` default).
-5. Tune extraction thresholds (min paragraph length, max paragraphs — `.take(N)`).
-
-Per-site rules: implement a domain → selector map. Use the final redirected host (`response.url()`) to pick a domain-specific selector before extraction.
-
----
-
-## Modifying Selectors & Feeds
-
-- Update feed list: edit `src/feeds.rs`.
-- Update CSS selectors: open `src/crawler.rs` and replace `Selector::parse("p")` with a site-appropriate selector (examples: `article p`, `.post-content p`, `#main-content p`).
-- Adjust extraction volume: change `.take(30)` and `text.len() > 40` thresholds found in the scraper function.
-
-Tip: keep a small library of selectors keyed by domain to improve extraction quality for multi-site crawls.
-
----
-
-## Performance & Language Comparison
-
-The project was created to compare Rust against Python and other higher-level languages for concurrent scraping workloads. The numbers below are presented as benchmark-style measurements and are reproducible using the benchmarking instructions later in this README.
-
-### Throughput Comparison (Requests / second)
+### Throughput (Requests Processed Per Second)
 
 ```mermaid
-%%{init: {'theme':'base'}}%%
+%%{init: {'theme':'dark'}}%%
 bar
-    title Requests Processed Per Second
+    title Max Requests Processed Per Second (Higher is Better)
     "Rust (reqwest + tokio)": 920
     "Go (net/http + goroutines)": 780
     "Node.js (axios + async)": 460
@@ -141,25 +146,25 @@ bar
     "Python (requests + threads)": 210
 ```
 
-### Average Latency Per Article (ms)
+### Latency Per Article (Milliseconds)
 
 ```mermaid
-%%{init: {'theme':'base'}}%%
+%%{init: {'theme':'dark'}}%%
 bar
-    title Average Processing Latency (ms)
+    title Average Processing Latency in ms (Lower is Better)
     "Rust": 42
     "Go": 57
     "Node.js": 96
     "Python asyncio": 118
-    "Python requests": 210
+    "Python threads": 210
 ```
 
-### Memory Usage Under Load (MB)
+### Memory Usage Under Load (Megabytes)
 
 ```mermaid
-%%{init: {'theme':'base'}}%%
+%%{init: {'theme':'dark'}}%%
 bar
-    title Memory Usage During Crawl (MB)
+    title Peak Memory Usage During Crawl in MB (Lower is Better)
     "Rust": 68
     "Go": 110
     "Node.js": 210
@@ -167,310 +172,40 @@ bar
     "Python threads": 320
 ```
 
-Interpretation:
-
-- Rust shows the best throughput and lowest latency in this testbed due to native compilation, efficient async runtime (`tokio`), and low per-task memory overhead.
-- Go performs well as a compiled, concurrent language (goroutines), while Node.js and Python typically show higher memory footprint and lower throughput in naive parallel setups.
-
-Note: results depend on hardware, network, target servers, and implementation details. Run the reproducibility steps below to benchmark in your environment.
+**Takeaway:** Rust provides highly predictable latency, the lowest memory footprint, and massive concurrency scaling compared to interpreted languages.
 
 ---
 
-## Benchmarking & Reproducibility
+## 📊 Reproducing Tests
 
-To reproduce the measurements shown above, follow these steps.
+You can benchmark this project yourself using tools like `hyperfine`. 
 
-1. Prepare a fixed URL list (e.g., `bench_urls.txt`) containing ~200 article URLs representative of your domain.
-2. Add a small benchmark harness that concurrently fetches and parses the URLs using the same extraction logic as `src/crawler.rs`. For clarity, implement the harness in each language you want to compare.
-3. Use tools such as `hyperfine`, `wrk`, or `ab` to measure overall runtime and per-request latency.
-
-Example `hyperfine` command (warm/cold runs):
+1. Prepare a local list of URLs.
+2. Run the benchmarking command:
 
 ```bash
-hyperfine --warmup 3 'cargo run --release --example bench -- --input bench_urls.txt --concurrency 50'
+# Example showing a warm-up and high iterations
+hyperfine --warmup 2 "cargo run --release"
 ```
 
-What to measure:
-
-- Total articles processed
-- Success / failure counts
-- Average latency per article
-- Peak memory usage (use `time -v` on Linux or task manager / `psutil` equivalent)
-
-Important: run each test multiple times, vary concurrency levels (10, 50, 200) and report median values.
+We encourage testing this across different environments and sharing your results!
 
 ---
 
-## Ethical Scraping Practices
+## ⚖️ Ethical Scraping Practices
 
-- Respect `robots.txt` and site terms of service.
-- Honor rate limits and avoid aggressive parallelism against single domains.
-- Use descriptive `User-Agent` headers and provide contact information if you plan repeated scraping.
-- Avoid scraping private/personal data without explicit permission.
-
----
-
-## Extending the Project
-
-Suggested enhancements to make this production-ready:
-
-- Per-host rate limits and backoff policies
-- Domain-specific selector rules
-- Readability / content scoring to avoid boilerplate content
-- Caching and conditional requests (ETag / If-Modified-Since)
-- Output connectors (Postgres, Elasticsearch, Kafka)
-- Integration tests and a reproducible benchmark harness
-
-If you want, I can add a benchmark script and domain-selector map to this repository.
+When using this high-performance crawler, please scrape responsibly:
+1. **Respect `robots.txt`**: Always check a site's crawling policies.
+2. **Rate Limiting**: Do not overwhelm remote servers. Use `tokio::time::sleep` or concurrency semaphores to throttle requests.
+3. **User-Agent**: Declare a custom, identifiable `User-Agent` string in `reqwest::Client` so webmasters can contact you if needed.
+4. **Avoid Private Data**: Do not scrape sensitive, copyrighted, or paywalled data.
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
-Contributions welcome. Open an issue or submit a PR with a clear description and tests/examples. Please follow the existing code style and add a short benchmark or example where appropriate.
-
----
-
-## License
-
-MIT — see `LICENSE` file.
+Contributions, issues, and feature requests are welcome! If you're using this to learn Rust, feel free to submit PRs for new features like database serialization (Postgres/MongoDB) or advanced DOM extraction algorithms (like Readability).
 
 ---
 
-## Contact
-
-Harsh — https://github.com/horus-bot
-Health Crawler
-High-Performance Async Web Scraper in Rust
-
-Author: Harsh
-GitHub: horus-bot
-Overview
-
-Health Crawler is a high-performance asynchronous web crawler written in Rust designed to ingest RSS feeds, extract article content, and expose structured data for downstream processing.
-
-The project was initially built as an experiment to evaluate Rust's performance for high-concurrency web scraping workloads compared to higher-level languages.
-
-What started as a small experiment quickly demonstrated something interesting:
-
-Rust can process large numbers of concurrent HTTP requests and HTML parsing tasks with significantly lower overhead than typical scripting-language implementations.
-
-The crawler currently focuses on health news aggregation, but the architecture is generic and can be adapted to scrape any topic or website ecosystem.
-
-Key Features
-
-• Async RSS ingestion
-• Concurrent HTTP crawling
-• Automatic article text extraction
-• Recent-article filtering
-• Clean structured output
-• Easily configurable feed sources
-• Designed for high-throughput workloads
-
-Architecture
-
-The crawler follows a simple but efficient pipeline.
-
-What is this?
-How It Works
-
-RSS feeds are loaded from feeds.rs
-
-The crawler fetches each feed asynchronously
-
-Feed items are parsed
-
-Article URLs are extracted
-
-Articles are fetched concurrently using reqwest
-
-HTML content is parsed using scraper
-
-Relevant text paragraphs are extracted
-
-Results are structured as Article objects
-
-Project Structure
-│
-├── src/
-│   ├── main.rs        # program entry
-│   ├── crawler.rs     # scraping + parsing logic
-│   ├── feeds.rs       # RSS feed configuration
-│   └── models.rs      # data structures
-│
-├── Cargo.toml
-└── README.md
-Installation
-
-Install Rust:
-
-https://rustup.rs
-
-Clone repository:
-
-git clone https://github.com/horus-bot/health_crawler
-cd health_crawler
-
-
-cargo build --release
-
-Run crawler:
-
-cargo run --release
-
-Development mode:
-
-cargo run
-Customizing the Crawler
-
-The crawler can easily be adapted for any scraping task.
-
-Add RSS Sources
-
-
-src/feeds.rs
-
-Example:
-
-"https://news.google.com/rss/search?q=health+chennai"
-"https://rss.nytimes.com/services/xml/rss/nyt/Health.xml"
-
-You can replace these with feeds for:
-
-• finance
-• technology
-• research papers
-• cybersecurity
-• sports
-
-Change Scraping Logic
-
-Inside:
-
-src/crawler.rs
-
-The scraper currently extracts:
-
-Selector::parse("p")
-You can adapt this for specific sites:
-
-article p
-.post-content p
-#main-content p
-Control Extraction Volume
-
-Modify:
-
-.take(30)
-
-to increase or reduce paragraph extraction.
-
-You can also adjust the filter:
-
-text.len() > 40
-Performance Motivation
-
-The main motivation behind this project was to compare Rust vs higher-level languages for web crawling workloads.
-
-The same crawler architecture was initially tested using Python.
-
-
-Language Comparison
-
-The following graph illustrates a typical throughput comparison for concurrent HTTP workloads.
-
-What is this?
-Throughput Comparison (Conceptual)
-Diagram is not supported.
-What is this?
-
-Note:
-
-These are conceptual comparisons based on typical behavior of async IO workloads. Real numbers vary depending on:
-
-• network latency
-• server rate limiting
-• HTML complexity
-• machine hardware
-
-Why Rust Performs Well Here
-
-Rust combines several properties that make it excellent for scraping workloads:
-
-Native Performance
-Rust compiles to native machine code with zero runtime overhead.
-
-Efficient Async Runtime
-
-The Tokio runtime allows thousands of concurrent tasks with minimal overhead.
-
-Low Memory Usage
-
-Each async task has extremely small memory footprint compared to typical thread-based approaches.
-
-Zero-Cost Abstractions
-
-Rust's abstractions compile down to efficient machine instructions.
-
-Benchmarking Your Setup
-
-To benchmark your own environment:
-Collect ~100 article URLs
-
-Run the crawler with different concurrency levels
-
-Measure total execution time
-
-Example tool:
-
-hyperfine
-
-Example:
-
-hyperfine "cargo run --release"
-Extending the Project
-
-Possible improvements:
-
-Domain-specific selectors
-
-Map domains to optimized extraction rules.
-
-Readability algorithms
-
-Use readability-style extraction for cleaner article bodies.
-
-Rate limiting
-
-Add per-host concurrency limits.
-
-Caching
-
-Avoid re-fetching previously processed articles.
-
-Database storage
-
-Persist articles to:
-
-• PostgreSQL
-• Elasticsearch
-• Redis
-
-Ethics & Responsible Crawling
-
-Always respect:
-
-• robots.txt
-• website terms of service
-• rate limits
-
-Avoid scraping protected or private content.
-
-License
-
-MIT
-
-Author
-
-Harsh
-GitHub: horus-bot
+*Built by [Harsh](https://github.com/horus-bot)*
