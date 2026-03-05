@@ -1,0 +1,111 @@
+/target
+# =========================
+
+# Rust build artifacts
+
+# =========================
+
+/target/
+**/*.rs.bk
+
+# Remove Cargo.lock for libraries, keep for binaries
+
+# For applications keep Cargo.lock committed
+
+# Uncomment next line only if this is a library
+
+# Cargo.lock
+
+# =========================
+
+# Logs
+
+# =========================
+
+*.log
+
+# =========================
+
+# Environment variables
+
+# =========================
+
+.env
+.env.local
+.env.*.local
+
+# =========================
+
+# Database files
+
+# =========================
+
+*.sqlite
+*.sqlite3
+*.db
+
+# =========================
+
+# IDE / Editor files
+
+# =========================
+
+# VSCode
+
+.vscode/
+
+# JetBrains / IntelliJ
+
+.idea/
+
+# Vim
+
+*.swp
+*.swo
+*~
+
+# =========================
+
+# OS generated files
+
+# =========================
+
+# Windows
+
+Thumbs.db
+Desktop.ini
+
+# Mac
+
+.DS_Store
+
+# =========================
+
+# Temporary files
+
+# =========================
+
+tmp/
+temp/
+*.tmp
+
+# =========================
+
+# Coverage reports
+
+# =========================
+
+coverage/
+*.profraw
+*.profdata
+
+# =========================
+
+# Binary outputs
+
+# =========================
+
+*.exe
+*.dll
+*.so
+*.dylib
