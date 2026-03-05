@@ -7,7 +7,7 @@ use crate::models::Article;
 
 
 // ------------------------------------------------
-// Check if article is within last 7 days
+// Check if article is within the last 7 days
 // ------------------------------------------------
 fn is_within_last_week(pub_date: Option<&str>) -> bool {
 
@@ -28,6 +28,22 @@ fn is_within_last_week(pub_date: Option<&str>) -> bool {
 
 
 // ------------------------------------------------
+// Remove HTML tags from RSS descriptions
+// ------------------------------------------------
+fn clean_html(html: &str) -> String {
+
+    let fragment = Html::parse_fragment(html);
+
+    fragment
+        .root_element()
+        .text()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+
+
+// ------------------------------------------------
 // Scrape article content from webpage
 // ------------------------------------------------
 async fn scrape_article(url: &str) -> Option<String> {
@@ -39,12 +55,10 @@ async fn scrape_article(url: &str) -> Option<String> {
 
 
     let response = client.get(url).send().await.ok()?;
-
     let body = response.text().await.ok()?;
 
 
     let document = Html::parse_document(&body);
-
     let selector = Selector::parse("p").ok()?;
 
 
@@ -94,7 +108,7 @@ pub async fn fetch_feed(url: &str) -> Vec<Article> {
 
     for item in channel.items() {
 
-        // Filter older than 7 days
+        // Filter articles older than 7 days
         if !is_within_last_week(item.pub_date()) {
             continue;
         }
@@ -103,7 +117,14 @@ pub async fn fetch_feed(url: &str) -> Vec<Article> {
         let link = item.link().unwrap_or("").to_string();
 
 
-        let content = scrape_article(&link).await;
+        // Try scraping the full article
+        let mut content = scrape_article(&link).await;
+
+
+        // If scraping fails, use cleaned RSS description
+        if content.is_none() {
+            content = item.description().map(|d| clean_html(d));
+        }
 
 
         let article = Article {
